@@ -107,6 +107,23 @@ const userLogin = asyncHandler(async (req, res) => {
     };
     res.cookie("token", token, cookieOptions);
 
+    const refreshToken = jwt.sign(
+      { id: user._id, email: user.email },
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: "7d" },
+    );
+
+    const refreshCookieOptions = {
+      httpOnly: true,
+      secure: true,
+      maxAge: 7 * 24 * 60 * 60 * 100,
+    };
+    res.cookie("refreshToken", refreshToken, refreshCookieOptions);
+
+    // const refreshToken = user.generateRefreshToken();
+    user.refreshToken = refreshToken;
+
+    await user.save();
     // Send response
     res.status(200).json({
       message: "Login successful",
@@ -190,6 +207,8 @@ const getProfile = asyncHandler(async (req, res) => {
 
 const userLogOut = asyncHandler(async (req, res) => {
   try {
+    res.clearCookie("token");
+    res.clearCookie("refreshToken");
     res.cookie("token", "", {});
     res.status(200).json({
       message: "Logged out successfully",
@@ -204,7 +223,7 @@ const userLogOut = asyncHandler(async (req, res) => {
   }
 });
 
-const refreshVerificationToken = asyncHandler(async (req, res) => {
+const resendVerificationEmail = asyncHandler(async (req, res) => {
   // find email
   // verifiy email is exist or not
   // fetch email in data base
@@ -245,7 +264,10 @@ const refreshVerificationToken = asyncHandler(async (req, res) => {
   sendMail({
     email: user.email,
     subject: "Resent email Verification - Task Manager",
-    Mailgen: emailverificationMailGenContent(user.username, verificationUrl),
+    mailGenContent: emailverificationMailGenContent(
+      user.username,
+      verificationUrl,
+    ),
   });
 
   res.status(200).json({
@@ -263,11 +285,150 @@ const refreshVerificationToken = asyncHandler(async (req, res) => {
   }
 });
 
+const refreshAccessToken = asyncHandler(async (req, res) => {
+  const refreshToken = req.cookies?.refreshToken;
+
+  if (!refreshToken) {
+    res.status(400).json({
+      message: "Refresh token is missing",
+    });
+  }
+
+  try {
+    const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+
+    const user = await User.findById(decoded.id);
+
+    if (!user) {
+      res.status(400).json({
+        message: "User no longer exist",
+        success: false,
+      });
+    }
+
+    const newAccessToken = jwt.sign(
+      { id: user._id, email: user.email },
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: "1d" },
+    );
+
+    res.cookie("accessToken", newAccessToken, {
+      httpOnly: true,
+      secure: true,
+      maxAge: 1000 * 60 * 60 * 24,
+    });
+
+    res.status(200).json({
+      message: "Access token refresh",
+      success: true,
+      accessToken: newAccessToken,
+    });
+  } catch (error) {
+    return res.status(401).json({
+      success: false,
+      message: "Invalid or expired refresh token",
+      error: error.message,
+    });
+  }
+});
+const forgotPasswordRequest = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    res.status(400).json({
+      message: "Invalid email",
+    });
+  }
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      res.status(400).json({
+        message: "User not found",
+      });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
+
+    user.forgotPasswordToken = hashedToken;
+    user.forgotPasswordExpiry = Date.now() + 10 * 60 * 1000;
+
+    await user.save({ validateBeforeSave: false });
+
+    const verificationUrl = `${process.env.BASE_URL}api/v1/rest-password/${resetToken}`;
+
+    sendMail({
+      email: user.email,
+      subject: "Reset your password - Task Manager",
+      mailGenContent: emailverificationMailGenContent(
+        user.username,
+        verificationUrl,
+      ),
+    });
+    res.status(200).json({
+      message: "Forgot password Successfully",
+      success: true,
+      verificationUrl,
+    });
+  } catch (error) {
+    res.status(401).json({
+      success: false,
+      message: "Forgot password failed",
+      error: error.message,
+    });
+  }
+});
+const changeCurrentPassword = asyncHandler(async (req, res) => {
+  const { token } = req.params;
+  const { password } = req.body;
+
+  const resetPasswordToken = crypto
+    .createHash("sha256")
+    .update(token)
+    .digest("hex");
+
+  try {
+    const user = await User.findOne({
+      forgotPasswordToken: resetPasswordToken,
+      forgotPasswordExpiry: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        message: "Token invalid or expired",
+      });
+    }
+
+    user.password = password;
+    user.forgotPasswordToken = undefined;
+    user.forgotPasswordExpiry = undefined;
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Password reset successfully",
+    });
+  } catch (error) {
+    res.status(401).json({
+      success: false,
+      message: "Reset password failed",
+      error: error.message,
+    });
+  }
+});
+
 export {
   registerUser,
   userEmailVerification,
   userLogin,
   userLogOut,
   getProfile,
-  refreshVerificationToken,
+  resendVerificationEmail,
+  refreshAccessToken,
+  forgotPasswordRequest,
+  changeCurrentPassword,
 };

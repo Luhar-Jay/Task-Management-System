@@ -5,12 +5,13 @@ import {
   userLogin,
   userLogOut,
   getProfile,
-  refreshVerificationToken,
+  resendVerificationEmail,
+  refreshAccessToken,
+  forgotPasswordRequest,
+  changeCurrentPassword,
 } from "../controllers/auth.controllers.js";
 import { userRegistrationValidator } from "../validators/index.js";
 import { validate } from "../middleware/validator.middleware.js";
-import { emailverificationMailGenContent } from "../utils/mail.js";
-import { logoutUser } from "../../../fullstack/controller/user.controller.js";
 import { isLoggedIn } from "../middleware/isLoggedIn.middleware.js";
 const router = Router();
 
@@ -21,6 +22,9 @@ router.route("/login").post(userLogin);
 router.route("/verify/:token").post(userEmailVerification);
 router.route("/logout").get(isLoggedIn, userLogOut);
 router.route("/profile").get(isLoggedIn, getProfile);
-router.route("/resent-verification").get(refreshVerificationToken);
+router.route("/resent-verification").get(resendVerificationEmail);
+router.route("/refresh-token").post(isLoggedIn, refreshAccessToken);
+router.route("/forgot-password").post(forgotPasswordRequest);
+router.route("/rest-password/:token").post(changeCurrentPassword);
 
 export default router;
