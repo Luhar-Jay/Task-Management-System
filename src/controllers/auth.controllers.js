@@ -185,7 +185,8 @@ const userEmailVerification = asyncHandler(async (req, res) => {
 
 const getProfile = asyncHandler(async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select("-password");
+    const user = await User.findById(req.user._id).select("-password");
+    console.log(user);
 
     if (!user) {
       return res.status(401).json({
@@ -195,6 +196,7 @@ const getProfile = asyncHandler(async (req, res) => {
 
     res.status(200).json({
       success: true,
+      message: "User profile data fetch successfully",
       user,
     });
   } catch (error) {
@@ -331,6 +333,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     });
   }
 });
+
 const forgotPasswordRequest = asyncHandler(async (req, res) => {
   const { email } = req.body;
 
@@ -381,6 +384,7 @@ const forgotPasswordRequest = asyncHandler(async (req, res) => {
     });
   }
 });
+
 const changeCurrentPassword = asyncHandler(async (req, res) => {
   const { token } = req.params;
   const { password } = req.body;

@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 
 export const isLoggedIn = async (req, res, next) => {
   try {
-    console.log("cookies", req.cookies);
+    // console.log("cookies", req.cookies);
     let token = req.cookies?.token;
     console.log("Token found", token ? "YES" : "NO");
 
@@ -16,9 +16,11 @@ export const isLoggedIn = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-    console.log("decoded data: ", decoded);
 
-    req.user = decoded;
+    req.user = {
+      _id: decoded.id,
+      email: decoded.email,
+    };
 
     next();
   } catch (error) {

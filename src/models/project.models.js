@@ -2,11 +2,10 @@ import mongoose, { Schema } from "mongoose";
 
 const projectSchema = new Schema(
   {
-    name: {
+    projectName: {
       type: String,
       required: true,
       trim: true,
-      unique: true,
     },
     description: {
       type: String,
@@ -16,6 +15,12 @@ const projectSchema = new Schema(
       ref: "User",
       required: true,
     },
+    member: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
   },
   { timestamps: true },
 );
